@@ -1,102 +1,179 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบบันทึกรายรับรายจ่าย</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
+    <title>Expense Tracker</title>
+    <script>
+        let editingTransactionId = null; // To keep track of the transaction being edited
+
+        // Fetch and display transactions when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchTransactions();
+        });
+
+        function fetchTransactions() {
+            fetch('http://localhost:3000/transactions')
+                .then(response => response.json())
+                .then(data => {
+                    const transactionList = document.getElementById('transaction-list');
+                    transactionList.innerHTML = '';
+                    data.forEach(transaction => {
+                        const formattedDate = new Date(transaction.transaction_date).toISOString().split('T')[0]; // Format date to YYYY-MM-DD
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${transaction.type}</td>
+                            <td>${transaction.item_name}</td>
+                            <td>${transaction.amount}</td>
+                            <td>${formattedDate}</td> <!-- Use formatted date here -->
+                            <td>
+                                <button onclick="editTransaction('${transaction.id}', '${transaction.type}', '${transaction.item_name}', '${transaction.amount}', '${formattedDate}')">แก้ไข</button>
+                                <button onclick="deleteTransaction('${transaction.id}')">ลบ</button>
+                            </td>
+                        `;
+                        transactionList.appendChild(row);
+                    });
+                });
         }
-        input, select, button {
-            margin: 5px 0;
-            padding: 10px;
-            width: 200px;
+
+        // Edit Transaction function
+        function editTransaction(id, type, itemName, amount, transactionDate) {
+            // Set the editing ID
+            editingTransactionId = id;
+
+            // Populate the input fields with the current values
+            document.getElementById('type').value = type;
+            document.getElementById('itemName').value = itemName;
+            document.getElementById('amount').value = parseFloat(amount).toFixed(2);
+            document.getElementById('transactionDate').value = transactionDate;
+
+            // Change the button text to "บันทึกข้อมูล" (Save)
+            document.getElementById('submit-button').innerText = 'บันทึกข้อมูล'; 
+
+            // Change the onsubmit function to save the edited transaction
+            document.getElementById('transaction-form').onsubmit = saveTransaction;
         }
-    </style>
+
+        // Save the edited transaction
+        function saveTransaction(event) {
+            event.preventDefault();
+
+            const type = document.getElementById('type').value;
+            const itemName = document.getElementById('itemName').value;
+            const amount = parseFloat(document.getElementById('amount').value).toFixed(2);
+            const transactionDate = document.getElementById('transactionDate').value;
+
+            fetch(`http://localhost:3000/transaction/${editingTransactionId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: type,
+                    itemName: itemName,
+                    amount: amount,
+                    transactionDate: transactionDate
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                fetchTransactions(); // Refresh the transaction list
+                resetForm(); // Reset the form fields
+            });
+        }
+
+        // Delete Transaction function
+        function deleteTransaction(id) {
+            if (confirm("คุณแน่ใจหรือว่าต้องการลบรายการนี้?")) {
+                fetch(`http://localhost:3000/transaction/${id}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    fetchTransactions(); // Refresh the transaction list
+                });
+            }
+        }
+
+        // Reset form fields after saving
+        function resetForm() {
+            document.getElementById('transaction-form').reset();
+            editingTransactionId = null; // Clear the editing ID
+
+            // Change button text back to "เพิ่มข้อมูล" (Add)
+            document.getElementById('submit-button').innerText = 'เพิ่มข้อมูล'; 
+
+            // Reset form submission
+            document.getElementById('transaction-form').onsubmit = addTransaction; // Reset to addTransaction function
+        }
+
+        // Add new transaction function
+        function addTransaction(event) {
+            event.preventDefault();
+
+            const type = document.getElementById('type').value;
+            const itemName = document.getElementById('itemName').value;
+            const amount = parseFloat(document.getElementById('amount').value).toFixed(2);
+            const transactionDate = document.getElementById('transactionDate').value;
+
+            fetch('http://localhost:3000/transaction', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: type,
+                    itemName: itemName,
+                    amount: amount,
+                    transactionDate: transactionDate
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                fetchTransactions(); // Refresh the transaction list
+                resetForm(); // Reset the form fields
+            });
+        }
+    </script>
 </head>
 <body>
+    <h1>Expense Tracker</h1>
 
-    <h1>ระบบบันทึกรายรับรายจ่าย</h1>
-    
-    <h2>เพิ่มรายการใหม่</h2>
-    <form id="transaction-form">
+    <h2>Add New Transaction</h2>
+    <form id="transaction-form" onsubmit="addTransaction(event)">
         <label for="type">ประเภท:</label>
         <select id="type" required>
             <option value="รายรับ">รายรับ</option>
             <option value="รายจ่าย">รายจ่าย</option>
-        </select><br>
+        </select>
+        <br>
 
         <label for="itemName">ชื่อรายการ:</label>
-        <input type="text" id="itemName" required><br>
+        <input type="text" id="itemName" required>
+        <br>
 
         <label for="amount">จำนวนเงิน:</label>
-        <input type="number" id="amount" step="0.01" required><br>
+        <input type="number" id="amount" step="0.01" min="0" required>
+        <br>
 
-        <label for="transactionDate">วันที่:</label>
-        <input type="date" id="transactionDate" required><br>
+        <label for="transactionDate">วันที่ใช้จ่าย:</label>
+        <input type="date" id="transactionDate" required>
+        <br>
 
-        <button type="submit">บันทึกข้อมูล</button>
+        <button type="submit" id="submit-button">เพิ่มข้อมูล</button> <!-- Default button text -->
     </form>
 
-    <h2>รายการทั้งหมด</h2>
-    <ul id="transaction-list"></ul>
-
-    <script>
-        const form = document.getElementById('transaction-form');
-        const transactionList = document.getElementById('transaction-list');
-
-        // ฟังก์ชันสำหรับบันทึกรายการใหม่
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault(); // หยุดการส่งฟอร์มปกติ
-
-            const type = document.getElementById('type').value;
-            const itemName = document.getElementById('itemName').value;
-            const amount = document.getElementById('amount').value;
-            const transactionDate = document.getElementById('transactionDate').value;
-
-            // ส่งข้อมูลไปยัง API
-            const response = await fetch('http://localhost:3000/transaction', {
-                method: 'POST', // ส่งข้อมูลแบบ POST
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    type,
-                    itemName,
-                    amount,
-                    transactionDate
-                })
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                alert(data.message); // แสดงข้อความยืนยันการบันทึก
-                form.reset(); // รีเซ็ตฟอร์ม
-                fetchTransactions(); // ดึงข้อมูลรายการใหม่
-            } else {
-                const error = await response.json();
-                alert('เกิดข้อผิดพลาด: ' + error.error); // แสดงข้อผิดพลาด
-            }
-        });
-
-        // ฟังก์ชันสำหรับดึงข้อมูลรายการทั้งหมด
-        async function fetchTransactions() {
-            const response = await fetch('http://localhost:3000/transactions');
-            const transactions = await response.json();
-
-            transactionList.innerHTML = ''; // เคลียร์รายการเดิม
-            transactions.forEach(transaction => {
-                const li = document.createElement('li');
-                li.textContent = `${transaction.type}: ${transaction.item_name} - ${transaction.amount} บาท (วันที่: ${transaction.transaction_date})`;
-                transactionList.appendChild(li); // เพิ่มรายการใหม่ใน DOM
-            });
-        }
-
-        // ดึงข้อมูลเมื่อโหลดหน้า
-        window.onload = fetchTransactions; // เรียกฟังก์ชันเมื่อลงหน้า
-    </script>
-
+    <h2>Transaction List</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>ประเภท</th>
+                <th>ชื่อรายการ</th>
+                <th>จำนวนเงิน</th>
+                <th>วันที่ใช้จ่าย</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="transaction-list"></tbody>
+    </table>
 </body>
 </html>
