@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบบันทึกรายรับรายจ่าย</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        input, select, button {
+            margin: 5px 0;
+            padding: 10px;
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>ระบบบันทึกรายรับรายจ่าย</h1>
+    
+    <h2>เพิ่มรายการใหม่</h2>
+    <form id="transaction-form">
+        <label for="type">ประเภท:</label>
+        <select id="type" required>
+            <option value="รายรับ">รายรับ</option>
+            <option value="รายจ่าย">รายจ่าย</option>
+        </select><br>
+
+        <label for="itemName">ชื่อรายการ:</label>
+        <input type="text" id="itemName" required><br>
+
+        <label for="amount">จำนวนเงิน:</label>
+        <input type="number" id="amount" step="0.01" required><br>
+
+        <label for="transactionDate">วันที่:</label>
+        <input type="date" id="transactionDate" required><br>
+
+        <button type="submit">บันทึกข้อมูล</button>
+    </form>
+
+    <h2>รายการทั้งหมด</h2>
+    <ul id="transaction-list"></ul>
+
+    <script>
+        const form = document.getElementById('transaction-form');
+        const transactionList = document.getElementById('transaction-list');
+
+        // ฟังก์ชันสำหรับบันทึกรายการใหม่
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault(); // หยุดการส่งฟอร์มปกติ
+
+            const type = document.getElementById('type').value;
+            const itemName = document.getElementById('itemName').value;
+            const amount = document.getElementById('amount').value;
+            const transactionDate = document.getElementById('transactionDate').value;
+
+            // ส่งข้อมูลไปยัง API
+            const response = await fetch('http://localhost:3000/transaction', {
+                method: 'POST', // ส่งข้อมูลแบบ POST
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    type,
+                    itemName,
+                    amount,
+                    transactionDate
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                alert(data.message); // แสดงข้อความยืนยันการบันทึก
+                form.reset(); // รีเซ็ตฟอร์ม
+                fetchTransactions(); // ดึงข้อมูลรายการใหม่
+            } else {
+                const error = await response.json();
+                alert('เกิดข้อผิดพลาด: ' + error.error); // แสดงข้อผิดพลาด
+            }
+        });
+
+        // ฟังก์ชันสำหรับดึงข้อมูลรายการทั้งหมด
+        async function fetchTransactions() {
+            const response = await fetch('http://localhost:3000/transactions');
+            const transactions = await response.json();
+
+            transactionList.innerHTML = ''; // เคลียร์รายการเดิม
+            transactions.forEach(transaction => {
+                const li = document.createElement('li');
+                li.textContent = `${transaction.type}: ${transaction.item_name} - ${transaction.amount} บาท (วันที่: ${transaction.transaction_date})`;
+                transactionList.appendChild(li); // เพิ่มรายการใหม่ใน DOM
+            });
+        }
+
+        // ดึงข้อมูลเมื่อโหลดหน้า
+        window.onload = fetchTransactions; // เรียกฟังก์ชันเมื่อลงหน้า
+    </script>
+
+</body>
+</html>
