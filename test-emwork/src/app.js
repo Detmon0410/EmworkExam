@@ -9,6 +9,7 @@ const cors = require('cors'); // Import the CORS module
 // สร้างการเชื่อมต่อกับฐานข้อมูล PostgreSQL โดยใช้ข้อมูลจาก ElephantSQL
 const pool = new Pool({
   connectionString: 'postgres://jofnlpey:NweQLLRaE3LQaS89fEPdU0arxrzY9Jru@john.db.elephantsql.com/jofnlpey',
+//connectionString:'postgres://mankehwr:qjyjN4ioe5noq2GYT80TUHCY-ugIld2O@tiny.db.elephantsql.com/mankehwr'
 });
 
 const app = express();
@@ -19,107 +20,152 @@ app.use(express.json());
 
 // Endpoint สำหรับบันทึกข้อมูล
 app.post('/transaction', async (req, res) => {
-  const { type, itemName, amount, transactionDate } = req.body;
-
-  // Validate input data
-  if (!type || !itemName || !amount || !transactionDate) {
+    const { type, itemName, amount, transactionDate } = req.body;
+  
+    // Log request data
+    console.log('Received request:', { type, itemName, amount, transactionDate });
+  
+    // Validate input data
+    if (!type || !itemName || !amount || !transactionDate) {
+      console.log('Validation failed: missing fields');
       return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบถ้วน' });
-  }
-
-  const createdAt = moment().format('YYYY-MM-DD HH:mm:ss');
-  const month = new Date(transactionDate).getMonth() + 1; // Get month (1-12)
-  const year = new Date(transactionDate).getFullYear(); // Get year
-
-  try {
+    }
+  
+    const createdAt = moment().format('YYYY-MM-DD HH:mm:ss');
+    const month = new Date(transactionDate).getMonth() + 1; // Get month (1-12)
+    const year = new Date(transactionDate).getFullYear();   // Get year
+  
+    // Log processed date
+    console.log('Processed transaction date:', { month, year, createdAt });
+  
+    try {
+      // **Make sure the amount is treated as a number**
+      const parsedAmount = Number(amount);
+      console.log('parsedAmount:',parsedAmount) ;// Convert amount to number explicitly
+      if (isNaN(parsedAmount)) {
+        console.log('Invalid amount:', amount);
+        return res.status(400).json({ error: 'จำนวนเงินไม่ถูกต้อง' }); // "Invalid amount"
+      }
+  
       // Save the transaction data
+      console.log('Attempting to insert transaction into the database...');
       const result = await pool.query(
-          'INSERT INTO transactions (type, item_name, amount, transaction_date, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-          [type, itemName, parseFloat(amount).toFixed(2), transactionDate, createdAt, createdAt]
+        'INSERT INTO transactions (type, item_name, amount, transaction_date, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+        [type, itemName, parsedAmount, transactionDate, createdAt, createdAt]
       );
-
+  
+      console.log('Transaction inserted:', result.rows[0]);
+  
       // Initialize totals
       let totalIncome = 0;
       let totalExpenses = 0;
-
+  
       // Fetch current totals for the month and year
+      console.log('Fetching current totals from transaction_summary...');
       const summaryResult = await pool.query(
-          'SELECT total_income, total_expenses FROM transaction_summary WHERE month = $1 AND year = $2',
-          [month, year]
+        'SELECT total_income, total_expenses FROM transaction_summary WHERE month = $1 AND year = $2',
+        [month, year]
       );
-
+  
+      // Log the retrieved summary (if any)
+      if (summaryResult.rows.length > 0) {
+        console.log('Existing summary found:', summaryResult.rows[0]);
+      } else {
+        console.log('No existing summary found for month:', month, 'year:', year);
+      }
+  
       // Check if summary already exists
       if (summaryResult.rows.length > 0) {
         // Update existing summary
-        totalIncome = summaryResult.rows[0].total_income;  // Get existing income
+        totalIncome = summaryResult.rows[0].total_income;   // Get existing income
         totalExpenses = summaryResult.rows[0].total_expenses;  // Get existing expenses
-    
-        // Update totals based on the transaction type
+  
+        console.log('Updating totals based on transaction type...');
         if (type === 'รายรับ') {
-          
-            totalIncome += parseFloat(amount); // Correctly add income
+          totalIncome += parsedAmount;
+          console.log('Income updated:', totalIncome);
         } else if (type === 'รายจ่าย') {
-            totalExpenses += parseFloat(amount); // Correctly add expenses
+          totalExpenses += parsedAmount;
+          console.log('Expenses updated:', totalExpenses);
         }
-    
-        const totalBalance = totalIncome - totalExpenses; // Calculate the total balance
-    
+  
+        const totalBalance = totalIncome - totalExpenses;
+        console.log('Total balance calculated:', totalBalance);
+  
+        // Update the summary
+        console.log('Updating transaction_summary for month:', month, 'year:', year);
         await pool.query(
-            'UPDATE transaction_summary SET total_income = $1, total_expenses = $2, total_balance = $3 WHERE month = $4 AND year = $5',
-            [totalIncome, totalExpenses, totalBalance, month, year]
+          'UPDATE transaction_summary SET total_income = $1, total_expenses = $2, total_balance = $3 WHERE month = $4 AND year = $5',
+          [totalIncome, totalExpenses, totalBalance, month, year]
         );
-    
-        console.log('Summary updated for month:', month, 'year:', year);
-    } else {
-          // Create a new summary
-          if (type === 'รายรับ') {
-              totalIncome = parseFloat(amount);
-          } else if (type === 'รายจ่าย') {
-              totalExpenses = parseFloat(amount);
-          }
-
-          const totalBalance = totalIncome - totalExpenses;
-
-          await pool.query(
-              'INSERT INTO transaction_summary (month, year, total_income, total_expenses, total_balance) VALUES ($1, $2, $3, $4, $5)',
-              [month, year, totalIncome, totalExpenses, totalBalance]
-          );
-
-          console.log('New summary created for month:', month, 'year:', year);
+  
+        console.log('Summary updated successfully.');
+      } else {
+        // Create a new summary
+        console.log('Creating a new transaction summary...');
+        if (type === 'รายรับ') {
+          totalIncome = parsedAmount;
+        } else if (type === 'รายจ่าย') {
+          totalExpenses = parsedAmount;
+        }
+  
+        const totalBalance = totalIncome - totalExpenses;
+        console.log('Total income:', totalIncome, 'Total expenses:', totalExpenses, 'Total balance:', totalBalance);
+  
+        // Insert the new summary
+        await pool.query(
+          'INSERT INTO transaction_summary (month, year, total_income, total_expenses, total_balance) VALUES ($1, $2, $3, $4, $5)',
+          [month, year, totalIncome, totalExpenses, totalBalance]
+        );
+  
+        console.log('New summary created successfully.');
       }
-
+  
+      // Respond with success
       res.status(201).json({ message: 'บันทึกข้อมูลสำเร็จ', transaction: result.rows[0] });
-  } catch (error) {
-      console.error('Error saving data', error);
+    } catch (error) {
+      // Log the error
+      console.error('Error saving data:', error);
       res.status(500).json({ error: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล' });
-  }
-});
-
-
+    }
+  });
+  
 
 
 // Endpoint สำหรับดึงข้อมูลรายการทั้งหมด
 app.get('/transactions', async (req, res) => {
-  try {
-    // Fetch all transactions
-    const transactionsResult = await pool.query('SELECT * FROM transactions');
-    const transactions = transactionsResult.rows;
-
-    // Fetch all summaries
-    const summariesResult = await pool.query('SELECT * FROM transaction_summary');
-    const summaries = summariesResult.rows;
-
-    // Send both transactions and summaries in the response
-    res.json({
-      transactions,
-      summaries
-    });
-  } catch (error) {
-    console.error('Error fetching data', error);
-    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการดึงข้อมูล' });
-  }
-});
-
-
+    try {
+      const { month, year } = req.query;
+  
+      // Base query for transactions
+      let transactionQuery = 'SELECT * FROM transactions';
+      let summaryQuery = 'SELECT * FROM transaction_summary';
+  
+      // If month and year are provided, filter the transactions and summaries
+      if (month && year) {
+        transactionQuery += ` WHERE EXTRACT(MONTH FROM transaction_date) = $1 AND EXTRACT(YEAR FROM transaction_date) = $2`;
+        summaryQuery += ` WHERE month = $1 AND year = $2`;
+      }
+  
+      // Fetch transactions
+      const transactionsResult = await pool.query(transactionQuery, month && year ? [month, year] : []);
+      const transactions = transactionsResult.rows;
+  
+      // Fetch summaries
+      const summariesResult = await pool.query(summaryQuery, month && year ? [month, year] : []);
+      const summaries = summariesResult.rows;
+  
+      // Send both transactions and summaries in the response
+      res.json({
+        transactions,
+        summaries
+      });
+    } catch (error) {
+      console.error('Error fetching data', error);
+      res.status(500).json({ error: 'เกิดข้อผิดพลาดในการดึงข้อมูล' });
+    }
+  });
+  
 
 
 // แก้ไขข้อมูลรายการ
