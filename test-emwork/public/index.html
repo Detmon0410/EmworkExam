@@ -7,34 +7,11 @@
     <script>
         let editingTransactionId = null; // To keep track of the transaction being edited
 
-        // Fetch and display transactions when the page loads
+        // Fetch and display transactions and summary when the page loads
         document.addEventListener('DOMContentLoaded', () => {
             fetchTransactions();
+            fetchSummary(); // Fetch summary data
         });
-
-        function fetchTransactions() {
-            fetch('http://localhost:3000/transactions')
-                .then(response => response.json())
-                .then(data => {
-                    const transactionList = document.getElementById('transaction-list');
-                    transactionList.innerHTML = '';
-                    data.forEach(transaction => {
-                        const formattedDate = new Date(transaction.transaction_date).toISOString().split('T')[0]; // Format date to YYYY-MM-DD
-                        const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td>${transaction.type}</td>
-                            <td>${transaction.item_name}</td>
-                            <td>${transaction.amount}</td>
-                            <td>${formattedDate}</td> <!-- Use formatted date here -->
-                            <td>
-                                <button onclick="editTransaction('${transaction.id}', '${transaction.type}', '${transaction.item_name}', '${transaction.amount}', '${formattedDate}')">แก้ไข</button>
-                                <button onclick="deleteTransaction('${transaction.id}')">ลบ</button>
-                            </td>
-                        `;
-                        transactionList.appendChild(row);
-                    });
-                });
-        }
 
         // Edit Transaction function
         function editTransaction(id, type, itemName, amount, transactionDate) {
@@ -77,6 +54,7 @@
             .then(data => {
                 alert(data.message);
                 fetchTransactions(); // Refresh the transaction list
+                fetchSummary(); // Refresh the summary
                 resetForm(); // Reset the form fields
             });
         }
@@ -91,6 +69,7 @@
                 .then(data => {
                     alert(data.message);
                     fetchTransactions(); // Refresh the transaction list
+                    fetchSummary(); // Refresh the summary
                 });
             }
         }
@@ -130,8 +109,55 @@
             .then(data => {
                 alert(data.message);
                 fetchTransactions(); // Refresh the transaction list
+                fetchSummary(); // Refresh the summary
                 resetForm(); // Reset the form fields
             });
+        }
+
+        function fetchTransactions() {
+            fetch('http://localhost:3000/transactions')
+                .then(response => response.json())
+                .then(data => {
+                    const transactionList = document.getElementById('transaction-list');
+                    transactionList.innerHTML = '';
+                    data.transactions.forEach(transaction => {
+                        const formattedDate = new Date(transaction.transaction_date).toISOString().split('T')[0]; // Format date to YYYY-MM-DD
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${transaction.type}</td>
+                            <td>${transaction.item_name}</td>
+                            <td>${transaction.amount}</td>
+                            <td>${formattedDate}</td> <!-- Use formatted date here -->
+                            <td>
+                                <button onclick="editTransaction('${transaction.id}', '${transaction.type}', '${transaction.item_name}', '${transaction.amount}', '${formattedDate}')">แก้ไข</button>
+                                <button onclick="deleteTransaction('${transaction.id}')">ลบ</button>
+                            </td>
+                        `;
+                        transactionList.appendChild(row);
+                    });
+                });
+        }
+
+        // Fetch summary data
+        function fetchSummary() {
+            fetch('http://localhost:3000/transactions') // Assuming this endpoint now returns both transactions and summaries
+                .then(response => response.json())
+                .then(data => {
+                    const summaryTable = document.getElementById('summary-table-body');
+                    summaryTable.innerHTML = '';
+
+                    data.summaries.forEach(summary => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${summary.month}</td>
+                            <td>${summary.year}</td>
+                            <td>${summary.total_income}</td>
+                            <td>${summary.total_expenses}</td>
+                            <td>${summary.total_balance}</td>
+                        `;
+                        summaryTable.appendChild(row);
+                    });
+                });
         }
     </script>
 </head>
@@ -163,6 +189,33 @@
     </form>
 
     <h2>Transaction List</h2>
+    <h2>search</h2>
+<label for="filterMonth">เดือน:</label>
+<select id="filterMonth" onchange="fetchTransactions(); fetchSummary();">
+    <option value="">ทั้งหมด</option>
+    <option value="1">มกราคม</option>
+    <option value="2">กุมภาพันธ์</option>
+    <option value="3">มีนาคม</option>
+    <option value="4">เมษายน</option>
+    <option value="5">พฤษภาคม</option>
+    <option value="6">มิถุนายน</option>
+    <option value="7">กรกฎาคม</option>
+    <option value="8">สิงหาคม</option>
+    <option value="9">กันยายน</option>
+    <option value="10">ตุลาคม</option>
+    <option value="11">พฤศจิกายน</option>
+    <option value="12">ธันวาคม</option>
+</select>
+
+<label for="filterYear">ปี:</label>
+<select id="filterYear" onchange="fetchTransactions(); fetchSummary();">
+    <option value="">ทั้งหมด</option>
+    <!-- Populate years dynamically or manually -->
+    <option value="2024">2024</option>
+    <option value="2023">2023</option>
+    <option value="2022">2022</option>
+    <!-- Add more years as needed -->
+</select>
     <table>
         <thead>
             <tr>
@@ -175,5 +228,20 @@
         </thead>
         <tbody id="transaction-list"></tbody>
     </table>
+
+    <h2>Transaction Summary</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>เดือน</th>
+                <th>ปี</th>
+                <th>รายรับรวม</th>
+                <th>รายจ่ายรวม</th>
+                <th>เงินคงเหลือ</th>
+            </tr>
+        </thead>
+        <tbody id="summary-table-body"></tbody>
+    </table>
+    
 </body>
 </html>
